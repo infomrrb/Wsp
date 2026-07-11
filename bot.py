@@ -16,7 +16,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ========== কনফিগারেশন ==========
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
+BOT_TOKEN = os.environ.get("8919343304:AAHX0sGQHIP3obd_pcNZC0tNigMSxLLbT1Q")
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable not set")
 
