@@ -16,14 +16,14 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ========== কনফিগারেশন ==========
-BOT_TOKEN = os.environ.get("8919343304:AAHX0sGQHIP3obd_pcNZC0tNigMSxLLbT1Q")
+BOT_TOKEN = 8919343304:AAHX0sGQHIP3obd_pcNZC0tNigMSxLLbT1Q
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable not set")
 
 PORT = int(os.environ.get("PORT", 10000))
-RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL")  # রেন্ডার স্বয়ংক্রিয়ভাবে সেট করে
+RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL")
 if not RENDER_URL:
-    # লোকাল টেস্টিংয়ের জন্য
+    # লোকাল টেস্টিংয়ের জন্য ডামি URL (যদি সেট না থাকে)
     RENDER_URL = "https://your-app-url.onrender.com"
 
 INTERFACE = os.environ.get("WLAN_INTERFACE", "wlan0")
@@ -309,5 +309,4 @@ def main():
         application.run_polling()
 
 if __name__ == "__main__":
-    main()for (CommandHandler("start", start))
-    
+    main()
