@@ -16,7 +16,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackContext
 
 # ========== কনফিগারেশন ==========
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")  # এনভায়রনমেন্ট ভেরিয়েবল বা সরাসরি দিন
+BOT_TOKEN = os.environ.get("8919343304:AAHX0sGQHIP3obd_pcNZC0tNigMSxLLbT1Q", "8919343304:AAHX0sGQHIP3obd_pcNZC0tNigMSxLLbT1Q")  # এনভায়রনমেন্ট ভেরিয়েবল বা সরাসরি দিন
 INTERFACE = "wlan0"  # আপনার ওয়্যারলেস ইন্টারফেস
 
 # ========== ১০০টি কমন WPS PIN ==========
