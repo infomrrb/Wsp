@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-WPSApp টেলিগ্রাম বট – রেন্ডারের জন্য ওয়েবহুক মোড
+WPSApp টেলিগ্রাম বট – Render-এর জন্য পোলিং মোড (Python 3.13)
 শুধুমাত্র নিজের নেটওয়ার্ক টেস্টের জন্য। দায়িত্ব নিয়ে ব্যবহার করুন।
 """
 
@@ -16,15 +16,9 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ========== কনফিগারেশন ==========
-BOT_TOKEN = "8919343304:AAHX0sGQHIP3obd_pcNZC0tNigMSxLLbT1Q"
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable not set")
-
-PORT = int(os.environ.get("PORT", 10000))
-RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL")
-if not RENDER_URL:
-    # লোকাল টেস্টিংয়ের জন্য ডামি URL (যদি সেট না থাকে)
-    RENDER_URL = "https://your-app-url.onrender.com"
 
 INTERFACE = os.environ.get("WLAN_INTERFACE", "wlan0")
 
@@ -87,7 +81,6 @@ logger = logging.getLogger(__name__)
 
 # ========== হেল্পার ফাংশন (async) ==========
 async def run_command(cmd: str, timeout: int = 30) -> str:
-    """শেল কমান্ড রান করে আউটপুট রিটার্ন করে।"""
     try:
         proc = await asyncio.create_subprocess_shell(
             cmd,
@@ -281,8 +274,8 @@ async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['cap_file_path'] = tmp_path
     await update.message.reply_text(f"✅ `.cap` ফাইল সেভ করা হয়েছে। এখন `/dicattack` চালান।")
 
-# ========== মেইন ফাংশন (ওয়েবহুক) ==========
-def main():
+# ========== মেইন ফাংশন (পোলিং) ==========
+async def main():
     application = Application.builder().token(BOT_TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
@@ -294,19 +287,9 @@ def main():
     application.add_handler(CommandHandler("dicattack", dicattack))
     application.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
-    # রেন্ডার পরিবেশ চিনে ওয়েবহুক সেট করি
-    if os.environ.get("RENDER"):
-        webhook_url = f"{RENDER_URL}/webhook"
-        logger.info(f"Setting webhook: {webhook_url}")
-        application.run_webhook(
-            listen="0.0.0.0",
-            port=PORT,
-            url_path="webhook",
-            webhook_url=webhook_url
-        )
-    else:
-        # লোকাল টেস্টিং – পোলিং
-        application.run_polling()
+    # পোলিং মোড (ওয়েবহুক না)
+    logger.info("Starting bot in polling mode...")
+    await application.run_polling()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
