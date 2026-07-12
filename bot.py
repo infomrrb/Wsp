@@ -16,7 +16,7 @@ from aiogram.enums import ParseMode
 load_dotenv()
 BOT_TOKEN = os.getenv("8919343304:AAGligo8QR3q1mgnKlBiROUjwXPGEj-Egh8")
 if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN পাওয়া যায়নি। .env ফাইল চেক করুন।")
+    raise ValueError("8919343304:AAGligo8QR3q1mgnKlBiROUjwXPGEj-Egh8")
 
 ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()]
 DB_PATH = "bot_data.db"
