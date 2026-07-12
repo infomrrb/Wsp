@@ -1,1 +1,3 @@
-sudo apt-get install aircrack-ng reaver bully
+python-telegram-bot
+Flask
+paramiko
