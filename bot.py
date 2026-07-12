@@ -13,7 +13,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
 # ---------- কনফিগারেশন ----------
-TELEGRAM_BOT_TOKEN = "YOUR_BOT_TOKEN"  # @BotFather থেকে নিন
+TELEGRAM_BOT_TOKEN = "8919343304:AAEgMVB-p83cUpf1imJnzgZrTBvHBEVmgsQ"  # @BotFather থেকে নিন
 ALLOWED_USERS = [123456789]           # আপনার টেলিগ্রাম ইউজার আইডি
 
 # গ্লোবাল ভেরিয়েবল
