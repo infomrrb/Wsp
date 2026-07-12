@@ -2,20 +2,19 @@ import os
 import asyncio
 import sqlite3
 from datetime import datetime
-from dotenv import load_dotenv
 
-# ================== ১. কনফিগারেশন (টোকেন এখানে নেই, এনভায়রনমেন্ট থেকে নিবে) ==================
-load_dotenv()
-
-BOT_TOKEN = os.getenv("8919343304:AAGligo8QR3q1mgnKlBiROUjwXPGEj-Egh8")
+# ================== ১. কনফিগারেশন ==================
+BOT_TOKEN = os.environ.get("8919343304:AAGligo8QR3q1mgnKlBiROUjwXPGEj-Egh8")
 if not BOT_TOKEN:
-    raise ValueError("❌ BOT_TOKEN environment variable is not set!")  # এররে টোকেন প্রিন্ট হবে না
-
-ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()]
+    raise ValueError("❌ BOT_TOKEN environment variable is not set! Please add it in Render Environment tab.")
+ADMIN_IDS = []
+admin_str = os.environ.get("ADMIN_IDS", "")
+if admin_str:
+    ADMIN_IDS = [int(x.strip()) for x in admin_str.split(",") if x.strip()]
 if not ADMIN_IDS:
-    raise ValueError("❌ ADMIN_IDS environment variable is not set!")
+    raise ValueError("❌ ADMIN_IDS environment variable is not set! Please add it in Render Environment tab.")
 
-# ================== ২. ইমপোর্ট (সব ডিপেন্ডেন্সি) ==================
+# ================== ২. ইমপোর্ট ==================
 from aiogram import Bot, Dispatcher, Router, F, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -24,7 +23,7 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
-# ================== ৩. ডাটাবেস (SQLite) ==================
+# ================== ৩. ডাটাবেস ==================
 DB_PATH = "bot_data.db"
 
 def get_db():
@@ -76,7 +75,7 @@ async def rate_limited_send(func, *args, **kwargs):
     async with SEMAPHORE:
         return await func(*args, **kwargs)
 
-# ================== ৫. এফএসএম (উইজার্ড স্টেট) ==================
+# ================== ৫. এফএসএম ==================
 class BroadcastState(StatesGroup):
     waiting_for_targets = State()
     waiting_for_message = State()
@@ -84,13 +83,13 @@ class BroadcastState(StatesGroup):
     waiting_for_count = State()
     waiting_for_delay = State()
 
-# ================== ৬. বট ও রাউটার ==================
+# ================== ৬. বট ==================
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
 router = Router()
 dp = Dispatcher()
 dp.include_router(router)
 
-running_tasks = {}  # ইউজার আইডি অনুযায়ী টাস্ক ট্র্যাক
+running_tasks = {}
 
 async def ensure_admin(message: Message = None, callback: CallbackQuery = None):
     uid = message.from_user.id if message else callback.from_user.id
@@ -293,7 +292,7 @@ async def logs_cmd(msg: Message):
     txt = "📜 **সর্বশেষ লগ**\n\n" + "\n".join([f"`{l['timestamp']}` → {l['action']}" for l in logs]) or "কোনো লগ নেই।"
     await msg.answer(txt[:4000])
 
-# ================== ৮. মেইন ফাংশন ==================
+# ================== ৮. মেইন ==================
 async def main():
     init_db()
     await bot.delete_webhook(drop_pending_updates=True)
