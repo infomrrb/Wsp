@@ -1,9 +1,21 @@
+import os
 import asyncio
 import sqlite3
-import json
-import os
 from datetime import datetime
 from dotenv import load_dotenv
+
+# ================== ১. কনফিগারেশন (টোকেন এখানে নেই, এনভায়রনমেন্ট থেকে নিবে) ==================
+load_dotenv()
+
+BOT_TOKEN = os.getenv("8919343304:AAGligo8QR3q1mgnKlBiROUjwXPGEj-Egh8")
+if not BOT_TOKEN:
+    raise ValueError("❌ BOT_TOKEN environment variable is not set!")  # এররে টোকেন প্রিন্ট হবে না
+
+ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()]
+if not ADMIN_IDS:
+    raise ValueError("❌ ADMIN_IDS environment variable is not set!")
+
+# ================== ২. ইমপোর্ট (সব ডিপেন্ডেন্সি) ==================
 from aiogram import Bot, Dispatcher, Router, F, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -12,16 +24,9 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
-# ================== কনফিগারেশন ==================
-load_dotenv()
-BOT_TOKEN = os.getenv("8919343304:AAGligo8QR3q1mgnKlBiROUjwXPGEj-Egh8")
-if not BOT_TOKEN:
-    raise ValueError("8919343304:AAGligo8QR3q1mgnKlBiROUjwXPGEj-Egh8")
-
-ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()]
+# ================== ৩. ডাটাবেস (SQLite) ==================
 DB_PATH = "bot_data.db"
 
-# ================== ডাটাবেস (SQLite) ==================
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -31,7 +36,6 @@ def init_db():
     with get_db() as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS admins (user_id INTEGER PRIMARY KEY, added_by INTEGER)")
         conn.execute("CREATE TABLE IF NOT EXISTS logs (id INTEGER PRIMARY KEY AUTOINCREMENT, admin_id INTEGER, action TEXT, details TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)")
-        # .env থেকে অ্যাডমিন যোগ করুন
         for uid in ADMIN_IDS:
             conn.execute("INSERT OR IGNORE INTO admins (user_id, added_by) VALUES (?, ?)", (uid, 0))
         conn.commit()
@@ -63,17 +67,16 @@ def get_recent_logs(limit=10):
     with get_db() as conn:
         return conn.execute("SELECT * FROM logs ORDER BY timestamp DESC LIMIT ?", (limit,)).fetchall()
 
-# ================== ইউটিলিটি ==================
+# ================== ৪. ইউটিলিটি ==================
 def split_ids(raw: str):
     return [x.strip() for x in raw.replace(",", " ").split() if x.strip().lstrip("-").isdigit()]
 
-# রেট লিমিট (প্রতি সেকেন্ডে ৩০টি)
 SEMAPHORE = asyncio.Semaphore(30)
 async def rate_limited_send(func, *args, **kwargs):
     async with SEMAPHORE:
         return await func(*args, **kwargs)
 
-# ================== FSM স্টেটস ==================
+# ================== ৫. এফএসএম (উইজার্ড স্টেট) ==================
 class BroadcastState(StatesGroup):
     waiting_for_targets = State()
     waiting_for_message = State()
@@ -81,16 +84,14 @@ class BroadcastState(StatesGroup):
     waiting_for_count = State()
     waiting_for_delay = State()
 
-# ================== রাউটার ও বট ==================
-router = Router()
+# ================== ৬. বট ও রাউটার ==================
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
+router = Router()
 dp = Dispatcher()
 dp.include_router(router)
 
-# চলমান ব্রডকাস্ট ট্র্যাক করার জন্য
-running_tasks = {}
+running_tasks = {}  # ইউজার আইডি অনুযায়ী টাস্ক ট্র্যাক
 
-# ================== মিডলওয়্যার (অ্যাডমিন চেক) ==================
 async def ensure_admin(message: Message = None, callback: CallbackQuery = None):
     uid = message.from_user.id if message else callback.from_user.id
     if not is_admin(uid):
@@ -99,7 +100,7 @@ async def ensure_admin(message: Message = None, callback: CallbackQuery = None):
         return False
     return True
 
-# ================== /start ==================
+# ================== ৭. কমান্ডসমূহ ==================
 @router.message(Command("start"))
 async def start_cmd(message: Message):
     if not await ensure_admin(message): return
@@ -110,7 +111,6 @@ async def start_cmd(message: Message):
     ])
     await message.answer("🔐 **অ্যাডমিন প্যানেল**\nনিচের বাটন ব্যবহার করুন।", reply_markup=kb)
 
-# ================== মেনু কলব্যাক ==================
 @router.callback_query(F.data.startswith("menu_"))
 async def menu_handler(callback: CallbackQuery):
     if not await ensure_admin(callback=callback): return
@@ -130,7 +130,6 @@ async def menu_handler(callback: CallbackQuery):
         await callback.message.edit_text(txt[:4000])
     await callback.answer()
 
-# ================== /broadcast (উইজার্ড) ==================
 @router.message(Command("broadcast"))
 async def broadcast_cmd(message: Message, state: FSMContext):
     if not await ensure_admin(message): return
@@ -165,7 +164,6 @@ async def step_media(msg: Message, state: FSMContext):
         await state.set_state(BroadcastState.waiting_for_count)
         await msg.answer("🔢 **ধাপ ৪/৫**\nপ্রতি আইডিতে কতবার পাঠাবেন? (সংখ্যা)")
     else:
-        # ফাইল বা URL
         await state.set_state(BroadcastState.waiting_for_media_file)
         await msg.answer(f"📁 {media_type} আপলোড করুন অথবা URL দিন (সরাসরি লিংক)।")
 
@@ -219,16 +217,13 @@ async def step_delay(msg: Message, state: FSMContext):
 
     await msg.answer(f"🚀 **ব্রডকাস্ট শুরু!**\nটার্গেট: {len(targets)}টি\nমোট মেসেজ: {total}\nবিরতি: {delay}সে.\n\n🛑 বন্ধ করতে `/stop` দিন।")
 
-    # ব্যাকগ্রাউন্ড টাস্ক
     task = asyncio.create_task(run_broadcast(
         bot=bot, targets=targets, text=text, media_type=media_type,
         media_url=media_url, media_file_id=media_file_id,
         count=count, delay=delay, admin_id=msg.from_user.id
     ))
-    # ট্র্যাক রাখার জন্য (ঐচ্ছিক)
     running_tasks[msg.from_user.id] = task
 
-# ================== ব্রডকাস্ট এক্সিকিউটর ==================
 async def run_broadcast(bot, targets, text, media_type, media_url, media_file_id, count, delay, admin_id):
     sent = 0
     try:
@@ -255,7 +250,6 @@ async def run_broadcast(bot, targets, text, media_type, media_url, media_file_id
     finally:
         if admin_id in running_tasks: del running_tasks[admin_id]
 
-# ================== /stop ==================
 @router.message(Command("stop"))
 async def stop_cmd(msg: Message):
     if not await ensure_admin(msg): return
@@ -265,7 +259,6 @@ async def stop_cmd(msg: Message):
     else:
         await msg.answer("❌ আপনার কোনো চলমান ব্রডকাস্ট নেই।")
 
-# ================== অ্যাডমিন ম্যানেজমেন্ট ==================
 @router.message(Command("add_admin"))
 async def add_admin_cmd(msg: Message):
     if not await ensure_admin(msg): return
@@ -293,7 +286,6 @@ async def remove_admin_cmd(msg: Message):
     log_action(msg.from_user.id, "remove_admin", f"removed {uid}")
     await msg.answer(f"✅ অ্যাডমিন {uid} সরানো হয়েছে।")
 
-# ================== /logs ==================
 @router.message(Command("logs"))
 async def logs_cmd(msg: Message):
     if not await ensure_admin(msg): return
@@ -301,7 +293,7 @@ async def logs_cmd(msg: Message):
     txt = "📜 **সর্বশেষ লগ**\n\n" + "\n".join([f"`{l['timestamp']}` → {l['action']}" for l in logs]) or "কোনো লগ নেই।"
     await msg.answer(txt[:4000])
 
-# ================== মেইন ==================
+# ================== ৮. মেইন ফাংশন ==================
 async def main():
     init_db()
     await bot.delete_webhook(drop_pending_updates=True)
