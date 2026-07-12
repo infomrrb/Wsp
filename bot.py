@@ -1,3 +1,21 @@
+from flask import Flask
+import threading
+import os
+
+app = Flask(__name__)
+
+@app.route('/')
+def health_check():
+    return "OK", 200
+
+def run_web():
+    port = int(os.environ.get("PORT", 8443))
+    app.run(host="0.0.0.0", port=port)
+
+# থ্রেডে ফ্লাস্ক চালু করুন (বটের সাথে সমান্তরালে)
+threading.Thread(target=run_web, daemon=True).start()
+
+# ... আপনার বটের বাকি কোড (polling শুরু করুন) ...
 #!/usr/bin/env python3
 """
 Telegram Bot for WPS Attack Control
