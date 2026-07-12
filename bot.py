@@ -4,7 +4,7 @@ import sqlite3
 from datetime import datetime
 
 # ================== ১. কনফিগারেশন (শুধু এনভায়রনমেন্ট থেকে পড়ে) ==================
-BOT_TOKEN = os.environ.get("8919343304:AAGligo8QR3q1mgnKlBiROUjwXPGEj-Egh8")
+BOT_TOKEN = os.environ.get("8753784982:AAEIZmLXTMETbhYcdkS83WS5TbpRKvePEEA")
 if not BOT_TOKEN:
     raise ValueError("❌ BOT_TOKEN environment variable is not set! Please set it in Render Environment tab.")
 
