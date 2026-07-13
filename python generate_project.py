@@ -2,7 +2,7 @@ import os
 
 FILES = {
     "sms_bot_pro/.env": """
-BOT_TOKEN=8753784982:AAFne0Gus1tJJlmF9vR4EOlCF0-BlBB7wv0
+BOT_TOKEN=8919343304:AAGligo8QR3q1mgnKlBiROUjwXPGEj-Egh8
 ADMIN_IDS=1967494059
 ADMIN_USERNAME=@RobiEntertainment
 DEV_USERNAME=RobiEntertainment
